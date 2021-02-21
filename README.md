@@ -1,4 +1,4 @@
-# Lambda Networks in PyTorch
+# Lambda Networks in PyTorch  ![Tests Passing](https://github.com/titu1994/lambda_networks_pt/actions/workflows/python-package.yml/badge.svg)
 
 Lambda Networks from the paper [LambdaNetworks: Modeling Long-Range Interactions Without Attention](https://arxiv.org/abs/2102.08602) by Bello et al.
 Adds support for Rank 3 tensor inputs as well as initial implementation of ResNet-D with Lambda Convolutions.
