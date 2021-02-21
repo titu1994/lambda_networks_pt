@@ -31,9 +31,7 @@ jobs:
         
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        python -m pip install flake8 pytest
-        if [ -f requirements.txt ]; then pip --upgrade --upgrade-strategy eager install -r requirements.txt; fi
+        if [ -f requirements.txt ]; then pip install --upgrade --upgrade-strategy eager -r requirements.txt -e .[tests]; fi
         
     - name: Test with pytest
       run: |
