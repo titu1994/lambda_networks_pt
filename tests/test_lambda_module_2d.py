@@ -10,9 +10,9 @@ if torch.cuda.is_available():
 
 
 @pytest.mark.parametrize("device", DEVICES)
-@pytest.mark.parametrize("dim_interdimension", [1, 4])
-def test_construction(device, dim_interdimension):
-    layer = lambda_module_2d.LambdaLayer2D(64, 64, dim_k=16, m=32, heads=4, dim_interdimension=dim_interdimension)
+@pytest.mark.parametrize("dim_intra_dimension", [1, 4])
+def test_construction(device, dim_intra_dimension):
+    layer = lambda_module_2d.LambdaLayer2D(64, 64, dim_k=16, m=32, heads=4, dim_intra_dimension=dim_intra_dimension)
     layer = layer.to(device)
 
     x = torch.zeros(5, 64, 32, 32, device=device)
@@ -22,9 +22,9 @@ def test_construction(device, dim_interdimension):
 
 
 @pytest.mark.parametrize("device", DEVICES)
-@pytest.mark.parametrize("dim_interdimension", [1, 4])
-def test_wrong_m(device, dim_interdimension):
-    layer = lambda_module_2d.LambdaLayer2D(64, 64, dim_k=16, m=64, heads=4, dim_interdimension=dim_interdimension)
+@pytest.mark.parametrize("dim_intra_dimension", [1, 4])
+def test_wrong_m(device, dim_intra_dimension):
+    layer = lambda_module_2d.LambdaLayer2D(64, 64, dim_k=16, m=64, heads=4, dim_intra_dimension=dim_intra_dimension)
     layer = layer.to(device)
 
     # m in layer = 64, m in input = 32
@@ -33,7 +33,7 @@ def test_wrong_m(device, dim_interdimension):
     with pytest.raises(RuntimeError):
         _ = layer(x)
 
-    layer = lambda_module_2d.LambdaLayer2D(64, 64, dim_k=16, m=16, heads=4, dim_interdimension=dim_interdimension)
+    layer = lambda_module_2d.LambdaLayer2D(64, 64, dim_k=16, m=16, heads=4, dim_intra_dimension=dim_intra_dimension)
     layer = layer.to(device)
 
     # m in layer = 64, m in input = 16
@@ -44,10 +44,10 @@ def test_wrong_m(device, dim_interdimension):
 
 
 @pytest.mark.parametrize("device", DEVICES)
-@pytest.mark.parametrize("dim_interdimension", [1, 4])
-def test_construction_local_context_impl_0(device, dim_interdimension):
+@pytest.mark.parametrize("dim_intra_dimension", [1, 4])
+def test_construction_local_context_impl_0(device, dim_intra_dimension):
     layer = lambda_module_2d.LambdaLayer2D(
-        64, 64, dim_k=16, r=7, heads=4, dim_interdimension=dim_interdimension, implementation=0
+        64, 64, dim_k=16, r=7, heads=4, dim_intra_dimension=dim_intra_dimension, implementation=0
     )
     layer = layer.to(device)
 
@@ -58,10 +58,10 @@ def test_construction_local_context_impl_0(device, dim_interdimension):
 
 
 @pytest.mark.parametrize("device", DEVICES)
-@pytest.mark.parametrize("dim_interdimension", [1, 4])
-def test_construction_local_context_impl_1(device, dim_interdimension):
+@pytest.mark.parametrize("dim_intra_dimension", [1, 4])
+def test_construction_local_context_impl_1(device, dim_intra_dimension):
     layer = lambda_module_2d.LambdaLayer2D(
-        64, 64, dim_k=16, r=7, heads=4, dim_interdimension=dim_interdimension, implementation=1
+        64, 64, dim_k=16, r=7, heads=4, dim_intra_dimension=dim_intra_dimension, implementation=1
     )
     layer = layer.to(device)
 
@@ -72,10 +72,10 @@ def test_construction_local_context_impl_1(device, dim_interdimension):
 
 
 @pytest.mark.parametrize("device", DEVICES)
-@pytest.mark.parametrize("dim_interdimension", [1, 4])
-def test_construction_local_context_equal_impl(device, dim_interdimension):
+@pytest.mark.parametrize("dim_intra_dimension", [1, 4])
+def test_construction_local_context_equal_impl(device, dim_intra_dimension):
     layer0 = lambda_module_2d.LambdaLayer2D(
-        16, 32, dim_k=16, r=5, heads=4, dim_interdimension=dim_interdimension, implementation=0
+        16, 32, dim_k=16, r=5, heads=4, dim_intra_dimension=dim_intra_dimension, implementation=0
     )
     # Set weights explicitly
     layer0.to_k.weight.data = torch.ones_like(layer0.to_k.weight)
@@ -85,7 +85,7 @@ def test_construction_local_context_equal_impl(device, dim_interdimension):
     layer0.pos_conv.bias.data = torch.ones_like(layer0.pos_conv.bias)
 
     layer1 = lambda_module_2d.LambdaLayer2D(
-        16, 32, dim_k=16, r=5, heads=4, dim_interdimension=dim_interdimension, implementation=1
+        16, 32, dim_k=16, r=5, heads=4, dim_intra_dimension=dim_intra_dimension, implementation=1
     )
     layer1.to_k.weight.data = torch.ones_like(layer1.to_k.weight)
     layer1.to_q.weight.data = torch.ones_like(layer1.to_q.weight)

@@ -26,7 +26,7 @@ setup(
     name='lambda_networks_pt',
     version=get_version("lambda_networks"),
     packages=find_packages(exclude=['tests']),
-    url='https://github.com/titu1994/lambda_networks',
+    url='https://github.com/titu1994/lambda_networks_pt',
     license='MIT',
     author='Somshubra Majumdar',
     author_email='titu1994@gmail.com',

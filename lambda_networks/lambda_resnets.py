@@ -76,7 +76,7 @@ class BasicBlock(nn.Module):
 
         if use_lambda_conv:
             self.conv2 = lambda_module.LambdaLayer2D(
-                planes, planes, dim_k=lambda_k, m=lambda_m, r=lambda_r, heads=lambda_heads, dim_interdimension=lambda_u
+                planes, planes, dim_k=lambda_k, m=lambda_m, r=lambda_r, heads=lambda_heads, dim_intra_dimension=lambda_u
             )
         else:
             self.conv2 = conv3x3(planes, planes)
@@ -148,7 +148,7 @@ class Bottleneck(nn.Module):
                     m=lambda_m,
                     r=lambda_r,
                     heads=lambda_heads,
-                    dim_interdimension=lambda_u,
+                    dim_intra_dimension=lambda_u,
                 )
             ]
 
