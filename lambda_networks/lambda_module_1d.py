@@ -147,8 +147,7 @@ class LambdaLayer1D(nn.Module):
         return out
 
     def compute_relative_positions(self, n, device=None):
-        pos = torch.meshgrid(torch.arange(n))
-        pos = torch.stack(pos).transpose(1, 0)  # [n, 1] pos[n] = (i,)
+        pos = torch.arange(n).unsqueeze(-1)  # [n, 1] pos[n] = (i,)
 
         if device is not None:
             pos = pos.to(device)
