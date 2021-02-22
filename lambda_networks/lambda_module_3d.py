@@ -7,14 +7,14 @@ from typing import Optional
 
 
 def compute_relative_positions(n):
-    pos = torch.meshgrid(torch.arange(n), torch.arange(n))
-    pos = einops.rearrange(torch.stack(pos), "n i j -> (i j) n")  # [n*n, 2] pos[n] = (i, j)
-    rel_pos = pos[None, :] - pos[:, None]  # [n*n, n*n, 2] rel_pos[n, m] = (rel_i, rel_j)
+    pos = torch.meshgrid(torch.arange(n), torch.arange(n), torch.arange(n))
+    pos = einops.rearrange(torch.stack(pos), "n i j k -> (i j k) n")  # [n*n*n, 3] pos[n] = (i, j, k)
+    rel_pos = pos[None, :] - pos[:, None]  # [n*n*n, n*n*n, 3] rel_pos[n, m] = (rel_i, rel_j, rel_k)
     rel_pos += n - 1  # shift value range from [-n+1, n-1] to [0, 2n-2]
     return rel_pos
 
 
-class LambdaLayer2D(nn.Module):
+class LambdaLayer3D(nn.Module):
     def __init__(
         self,
         dim: int,
@@ -24,10 +24,10 @@ class LambdaLayer2D(nn.Module):
         dim_k: int = 16,
         dim_intra: int = 1,
         heads: int = 4,
-        implementation: int = 0,
+        implementation: int = 1,
     ):
         """
-        Lambda Networks module implemented for 4D input tensor (B, C, H, W).
+        Lambda Networks module implemented for 5D input tensor (B, C, D, H, W).
 
         References:
             - [LambdaNetworks: Modeling Long-Range Interactions Without Attention](https://arxiv.org/abs/2102.08602)
@@ -43,8 +43,7 @@ class LambdaLayer2D(nn.Module):
                 lambdas over both the context positions and the intra-depth dimension.
             heads: Number of heads in multi-query lambda layer. Corresponds to `h` in the paper.
             implementation: (Optional) Integer flag representing which implementation should be utilized.
-                Implementation 0: Implementation from the paper, constructing a n-D Lambda Module utilizing a (n+1)-D
-                    Convolutional operator.
+                Implementation 0: Not Implemented as Conv4D operator does not exist (yet).
                 Implementation 1: Equivalent implementation of the paper, constructing a n-D Lambda Module utilizing a
                     n-D Convolutional operator, and then looping through the Key (K) dimension, applying the n-D conv to
                     to each K_i, finally concatenating all the values to map `u` -> `k`. Equivalent to Impl 0 for fp64,
@@ -56,7 +55,7 @@ class LambdaLayer2D(nn.Module):
         self.u = dim_intra  # intra-depth dimension
         self.heads = heads
 
-        VALID_IMPLEMENTATIONS = [0, 1]
+        VALID_IMPLEMENTATIONS = [1]
         assert implementation in VALID_IMPLEMENTATIONS, f"Implementation must be one of {VALID_IMPLEMENTATIONS}"
         self.implementation = implementation
 
@@ -64,17 +63,17 @@ class LambdaLayer2D(nn.Module):
         dim_v = dim_out // heads
         self.v = dim_v
 
-        self.to_q = nn.Conv2d(dim, dim_k * heads, 1, bias=False)
-        self.to_k = nn.Conv2d(dim, dim_k * dim_intra, 1, bias=False)
-        self.to_v = nn.Conv2d(dim, dim_v * dim_intra, 1, bias=False)
+        self.to_q = nn.Conv3d(dim, dim_k * heads, 1, bias=False)
+        self.to_k = nn.Conv3d(dim, dim_k * dim_intra, 1, bias=False)
+        self.to_v = nn.Conv3d(dim, dim_v * dim_intra, 1, bias=False)
 
         # initialize Q, K and V
         nn.init.normal_(self.to_q.weight, std=(dim_k * dim_out) ** (-0.5))
         nn.init.normal_(self.to_k.weight, std=(dim_out) ** (-0.5))
         nn.init.normal_(self.to_v.weight, std=(dim_out) ** (-0.5))
 
-        self.norm_q = nn.BatchNorm2d(dim_k * heads)
-        self.norm_v = nn.BatchNorm2d(dim_v * dim_intra)
+        self.norm_q = nn.BatchNorm3d(dim_k * heads)
+        self.norm_v = nn.BatchNorm3d(dim_v * dim_intra)
 
         self.local_context = r is not None
 
@@ -86,20 +85,18 @@ class LambdaLayer2D(nn.Module):
 
         if r is not None:
             assert (r % 2) == 1, "Receptive kernel size should be odd"
-            if self.implementation == 0:
-                self.pos_conv = nn.Conv3d(dim_intra, dim_k, (1, r, r), padding=(0, r // 2, r // 2))
-            elif self.implementation == 1:
-                self.pos_conv = nn.Conv2d(dim_intra, dim_k, (r, r), padding=(r // 2, r // 2))
+            if self.implementation == 1:
+                self.pos_conv = nn.Conv3d(dim_intra, dim_k, (r, r, r), padding=(r // 2, r // 2, r // 2))
         else:
             assert m is not None, "You must specify the window size (m = h = w)"
             rel_lengths = 2 * m - 1
-            self.rel_pos_emb = nn.Parameter(torch.randn(rel_lengths, rel_lengths, dim_k, dim_intra))
+            self.rel_pos_emb = nn.Parameter(torch.randn(rel_lengths, rel_lengths, rel_lengths, dim_k, dim_intra))
             self.rel_pos = compute_relative_positions(m)
 
             nn.init.uniform_(self.rel_pos_emb)
 
     def forward(self, x):
-        b, c, hh, ww = x.shape
+        b, c, dd, hh, ww = x.shape
         u = self.u
         h = self.heads
 
@@ -110,35 +107,30 @@ class LambdaLayer2D(nn.Module):
         q = self.norm_q(q)
         v = self.norm_v(v)
 
-        q = einops.rearrange(q, "b (h k) hh ww -> b h k (hh ww)", h=h)
-        k = einops.rearrange(k, "b (u k) hh ww -> b u k (hh ww)", u=u)
-        v = einops.rearrange(v, "b (u v) hh ww -> b u v (hh ww)", u=u)
+        q = einops.rearrange(q, "b (h k) dd hh ww -> b h k (dd hh ww)", h=h)
+        k = einops.rearrange(k, "b (u k) dd hh ww -> b u k (dd hh ww)", u=u)
+        v = einops.rearrange(v, "b (u v) dd hh ww -> b u v (dd hh ww)", u=u)
 
-        k = k.softmax(dim=-1)  # [b, u, k, hh * ww]
+        k = k.softmax(dim=-1)  # [b, u, k, dd * hh * ww]
 
         lambda_c = torch.einsum("b u k m, b u v m -> b k v", k, v)
         y_c = torch.einsum("b h k n, b k v -> b h v n", q, lambda_c)
 
         if self.local_context:
-            if self.implementation == 0:
-                v = einops.rearrange(v, "b u v (hh ww) -> b u v hh ww", hh=hh, ww=ww)
-                lambda_p = self.pos_conv(v)
-                y_p = torch.einsum("b h k n, b k v n -> b h v n", q, lambda_p.flatten(3))
-
-            elif self.implementation == 1:
-                v = einops.rearrange(v, "b u v (hh ww) -> b u v hh ww", hh=hh, ww=ww)
+            if self.implementation == 1:
+                v = einops.rearrange(v, "b u v (dd hh ww) -> b u v dd hh ww", dd=dd, hh=hh, ww=ww)
                 v_stack = []
                 for v_idx in range(self.v):
-                    v_stack.append(self.pos_conv(v[:, :, v_idx, :, :]))
+                    v_stack.append(self.pos_conv(v[:, :, v_idx, :, :, :]))
                 lambda_p = torch.stack(v_stack, dim=2)
                 y_p = torch.einsum("b h k n, b k v n -> b h v n", q, lambda_p.flatten(3))
 
         else:
-            h_, w_ = self.rel_pos.unbind(dim=-1)
-            rel_pos_emb = self.rel_pos_emb[h_, w_]
+            d_, h_, w_ = self.rel_pos.unbind(dim=-1)
+            rel_pos_emb = self.rel_pos_emb[d_, h_, w_]
             lambda_p = torch.einsum("n m k u, b u v m -> b n k v", rel_pos_emb, v)
             y_p = torch.einsum("b h k n, b n k v -> b h v n", q, lambda_p)
 
         Y = y_c + y_p
-        out = einops.rearrange(Y, "b h v (hh ww) -> b (h v) hh ww", hh=hh, ww=ww)
+        out = einops.rearrange(Y, "b h v (dd hh ww) -> b (h v) dd hh ww", dd=dd, hh=hh, ww=ww)
         return out

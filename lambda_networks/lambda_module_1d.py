@@ -89,7 +89,7 @@ class LambdaLayer1D(nn.Module):
         else:
             assert m is not None, "You must specify the window size (m = t)"
             rel_lengths = 2 * m - 1
-            self.rel_pos_emb = nn.Parameter(torch.randn(rel_lengths, rel_lengths, dim_k, dim_intra))
+            self.rel_pos_emb = nn.Parameter(torch.randn(rel_lengths, dim_k, dim_intra))
             self.rel_pos = compute_relative_positions(m)
 
             nn.init.uniform_(self.rel_pos_emb)
@@ -128,9 +128,9 @@ class LambdaLayer1D(nn.Module):
                 y_p = torch.einsum("b h k n, b k v n -> b h v n", q, lambda_p)
 
         else:
-            # n = m: [t, t]
-            n = m = self.rel_pos[:, :, -1]
-            rel_pos_emb = self.rel_pos_emb[n, m]
+            # n = : [t]
+            n = self.rel_pos[:, :, -1]
+            rel_pos_emb = self.rel_pos_emb[n]
             lambda_p = torch.einsum("n m k u, b u v m -> b n k v", rel_pos_emb, v)
             y_p = torch.einsum("b h k n, b n k v -> b h v n", q, lambda_p)
 
