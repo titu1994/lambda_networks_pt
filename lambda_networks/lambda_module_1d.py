@@ -7,8 +7,8 @@ from typing import Optional
 
 def compute_relative_positions(n):
     pos = torch.meshgrid(torch.arange(n))
-    pos = torch.stack(pos).transpose(1, 0)  # [n*n, 2] pos[n] = (i, j)
-    rel_pos = pos[None, :] - pos[:, None]  # [n*n, n*n, 2] rel_pos[n, m] = (rel_i, rel_j)
+    pos = torch.stack(pos).transpose(1, 0)  # [n, 1] pos[n] = (i,)
+    rel_pos = pos[None, :] - pos[:, None]  # [n, n, 1] rel_pos[n, m] = (rel_i)
     rel_pos += n - 1  # shift value range from [-n+1, n-1] to [0, 2n-2]
     return rel_pos
 
