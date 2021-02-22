@@ -5,14 +5,6 @@ import torch.nn as nn
 from typing import Optional
 
 
-def compute_relative_positions(n):
-    pos = torch.meshgrid(torch.arange(n))
-    pos = torch.stack(pos).transpose(1, 0)  # [n, 1] pos[n] = (i,)
-    rel_pos = pos[None, :] - pos[:, None]  # [n, n, 1] rel_pos[n, m] = (rel_i)
-    rel_pos += n - 1  # shift value range from [-n+1, n-1] to [0, 2n-2]
-    return rel_pos
-
-
 class LambdaLayer1D(nn.Module):
     def __init__(
         self,
@@ -51,9 +43,14 @@ class LambdaLayer1D(nn.Module):
         """
         super().__init__()
         dim_out = dim_out if dim_out is not None else dim
+        self.dim_in = dim
+        self.dim_out = dim_out
+
         self.k = dim_k
         self.u = dim_intra  # intra-depth dimension
         self.h = self.heads = heads
+        self.m = m
+        self.r = r
 
         VALID_IMPLEMENTATIONS = [0, 1]
         assert implementation in VALID_IMPLEMENTATIONS, f"Implementation must be one of {VALID_IMPLEMENTATIONS}"
@@ -90,7 +87,7 @@ class LambdaLayer1D(nn.Module):
             assert m is not None, "You must specify the window size (m = t)"
             rel_lengths = 2 * m - 1
             self.rel_pos_emb = nn.Parameter(torch.randn(rel_lengths, dim_k, dim_intra))
-            self.rel_pos = compute_relative_positions(m)
+            self.rel_pos = self.compute_relative_positions(m)
 
             nn.init.uniform_(self.rel_pos_emb)
 
@@ -125,11 +122,22 @@ class LambdaLayer1D(nn.Module):
                 for v_idx in range(self.v):
                     v_stack.append(self.pos_conv(v[:, :, v_idx, :]))
                 lambda_p = torch.stack(v_stack, dim=2)
+                del v_stack
                 y_p = torch.einsum("b h k n, b k v n -> b h v n", q, lambda_p)
 
         else:
             # n = : [t]
-            n = self.rel_pos[:, :, -1]
+            if t == self.m:
+                n = self.rel_pos[:, :, -1]
+            else:
+                if t > self.m:
+                    raise ValueError(
+                        f"Current sequence length ({t}) cannot be larger than maximum context size ({self.m})"
+                    )
+
+                n = self.compute_relative_positions(t, device=x.device)
+                n = n[:, :, -1]
+
             rel_pos_emb = self.rel_pos_emb[n]
             lambda_p = torch.einsum("n m k u, b u v m -> b n k v", rel_pos_emb, v)
             y_p = torch.einsum("b h k n, b n k v -> b h v n", q, lambda_p)
@@ -138,5 +146,17 @@ class LambdaLayer1D(nn.Module):
         out = Y.reshape([b, self.h * self.v, t])
         return out
 
+    def compute_relative_positions(self, n, device=None):
+        pos = torch.meshgrid(torch.arange(n))
+        pos = torch.stack(pos).transpose(1, 0)  # [n, 1] pos[n] = (i,)
+
+        if device is not None:
+            pos = pos.to(device)
+
+        rel_pos = pos[None, :] - pos[:, None]  # [n, n, 1] rel_pos[n, m] = (rel_i)
+        rel_pos = torch.clamp(rel_pos, -self.m, self.m)
+        rel_pos += self.m - 1  # n - 1  # shift value range from [-n+1, n-1] to [0, 2n-2]
+        return rel_pos
+
     def extra_repr(self):
-        pass
+        return 'input_dim={dim_in}, output_dim={dim_out}, m={m}, r={r}, k={k}, h={h}, u={u},'.format(**self.__dict__)

@@ -9,6 +9,12 @@ if torch.cuda.is_available():
     DEVICES.append("cuda")
 
 
+def test_repr():
+    layer = lambda_module_2d.LambdaLayer2D(64, 64, dim_k=16, m=32, heads=4, dim_intra=4)
+    representation = repr(layer)
+    assert len(representation) > 0
+
+
 @pytest.mark.parametrize("device", DEVICES)
 @pytest.mark.parametrize("dim_intra", [1, 4])
 def test_construction(device, dim_intra):
@@ -23,23 +29,29 @@ def test_construction(device, dim_intra):
 
 @pytest.mark.parametrize("device", DEVICES)
 @pytest.mark.parametrize("dim_intra", [1, 4])
-def test_wrong_m(device, dim_intra):
-    layer = lambda_module_2d.LambdaLayer2D(64, 64, dim_k=16, m=64, heads=4, dim_intra=dim_intra)
+def test_input_smaller_than_m(device, dim_intra):
+    layer = lambda_module_2d.LambdaLayer2D(32, 32, dim_k=16, m=32, heads=4, dim_intra=dim_intra)
     layer = layer.to(device)
 
-    # m in layer = 64, m in input = 32
-    x = torch.zeros(5, 64, 32, 32, device=device)
+    # m in layer = 32, m in input = 16
+    x = torch.zeros(5, 32, 16, 16, device=device)
 
-    with pytest.raises(RuntimeError):
-        _ = layer(x)
+    out = layer(x)
+    assert out.shape == torch.Size([5, 32, 16, 16])
 
-    layer = lambda_module_2d.LambdaLayer2D(64, 64, dim_k=16, m=16, heads=4, dim_intra=dim_intra)
+    # m in layer = 32, m in input = 31
+    x = torch.zeros(5, 32, 31, 31, device=device)
+
+    out = layer(x)
+    assert out.shape == torch.Size([5, 32, 31, 31])
+
+    layer = lambda_module_2d.LambdaLayer2D(32, 32, dim_k=16, m=16, heads=4, dim_intra=dim_intra)
     layer = layer.to(device)
 
     # m in layer = 64, m in input = 16
-    x = torch.zeros(5, 64, 32, 32, device=device)
+    x = torch.zeros(5, 32, 32, 32, device=device)
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ValueError):
         _ = layer(x)
 
 

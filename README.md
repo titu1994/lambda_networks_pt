@@ -7,7 +7,6 @@ Code is adapted from `lucidrains` implementation - https://github.com/lucidrains
 
 TODO:
   - Add support for ResNet-RS
-  - Add support for lambda_conv_3d (if possible)
 
 # Installation
 
@@ -21,13 +20,14 @@ There are three modules inside -
 
 - `lambda_module_1d.py`: Implements Lambda Network block for Rank 3 input data (B, C, T)
 - `lambda_module_2d.py`: Implements Lambda Network block for Rank 4 input data (B, C, H, W)
+- `lambda_module_3d.py`: Implements Lambda Network block for Rank 5 input data (B, C, D, H, W)
 - `lambda_resnets.py`  : Implements Lambda ResNets (Using ResNet-D, Not ResNet-RS!) for Rank 4 input data (B, C, H, W)
 
 
 ```python
 import lambda_networks
 
-# 1D Block or 2D block
+# 1D Block, 2D Block or 3D Block
 module = lambda_networks.LambdaLayer1D(
     dim=32, 
     dim_out=64,
