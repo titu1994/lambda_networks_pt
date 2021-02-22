@@ -1,7 +1,7 @@
 # Lambda Networks in PyTorch  ![Tests Passing](https://github.com/titu1994/lambda_networks_pt/actions/workflows/python-package.yml/badge.svg)
 
 Lambda Networks from the paper [LambdaNetworks: Modeling Long-Range Interactions Without Attention](https://arxiv.org/abs/2102.08602) by Bello et al.
-Adds support for Rank 3 tensor inputs as well as initial implementation of ResNet-D with Lambda Convolutions.
+Adds support for Rank 3 and Rank 5 tensor inputs as well as initial implementation of ResNet-D with Lambda Convolutions.
 
 Code is adapted from `lucidrains` implementation - https://github.com/lucidrains/lambda-networks
 
@@ -36,7 +36,7 @@ module = lambda_networks.LambdaLayer1D(
     dim_k=16,  # Dimension of key/query.
     dim_intra=1  # Intra-dimension "u" in the paper.
     heads=4,  # Number of heads. Represents "h" in the paper.
-    implementation=0,  # Defaults to 0, which implements the paper version of n-D Lambda using (n+1)-D Convolution.
+    implementation=0,  # Defaults to 0 generally, which implements the paper version of n-D Lambda using (n+1)-D Convolution.
 )
 
 # Lambda ResNet-D
@@ -62,4 +62,4 @@ pytest tests/
 # Requirements
 
 - pytorch >= 1.7.1. Older versions might work, not tested.
-- einops - Required for LambdaLayer2D and Lambda-ResNet-D. Not required for LambdaLayer1D.
+- einops - Required for LambdaLayer2D/3D and Lambda-ResNet-D. Not required for LambdaLayer1D.
