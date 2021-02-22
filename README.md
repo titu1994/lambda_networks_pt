@@ -31,11 +31,11 @@ import lambda_networks
 module = lambda_networks.LambdaLayer1D(
     dim=32, 
     dim_out=64,
-    dim_k=16,  # Dimension of key/query.
     m=None,  # Use positive integer for Global Context using Lambda Layer. Represents "m" in the paper.
     r=None,  # Use positive integer for Local Context using Lambda Convolution. Represents "r" in the paper.
+    dim_k=16,  # Dimension of key/query.
+    dim_intra=1  # Intra-dimension "u" in the paper.
     heads=4,  # Number of heads. Represents "h" in the paper.
-    dim_intra_dimension=1  # Intra-dimension "u" in the paper.
     implementation=0,  # Defaults to 0, which implements the paper version of n-D Lambda using (n+1)-D Convolution.
 )
 

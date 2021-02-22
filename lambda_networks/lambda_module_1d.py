@@ -18,11 +18,11 @@ class LambdaLayer1D(nn.Module):
         self,
         dim: int,
         dim_out: Optional[int],
-        dim_k: int = 16,
         m: Optional[int] = None,
         r: Optional[int] = None,
+        dim_k: int = 16,
+        dim_intra: int = 1,
         heads: int = 4,
-        dim_intra_dimension: int = 1,
         implementation: int = 0,
     ):
         """
@@ -34,13 +34,13 @@ class LambdaLayer1D(nn.Module):
         Args:
             dim: Dimension of the channel axis in the input tensor.
             dim_out: Output dimension of the channel axis.
-            dim_k: Key / Query dimension. Defaults to 16.
             m: (Optional) Global Context size. If provided, the temporal dimension T must match `m` exactly.
             r: (Optional) Local Context convolutional receptive field. Should be used to reduce memory / compute requirements,
                 as well as apply Lambda Module on dimensions which change per batch (i.e. when T is not constant).
-            heads: Number of heads in multi-query lambda layer. Corresponds to `h` in the paper.
-            dim_intra_dimension: Intra-depth dimension. Corresponds to `u` in the paper. `u` > 1 computes multi-query
+            dim_k: Key / Query dimension. Defaults to 16.
+            dim_intra: Intra-depth dimension. Corresponds to `u` in the paper. `u` > 1 computes multi-query
                 lambdas over both the context positions and the intra-depth dimension.
+            heads: Number of heads in multi-query lambda layer. Corresponds to `h` in the paper.
             implementation: (Optional) Integer flag representing which implementation should be utilized.
                 Implementation 0: Implementation from the paper, constructing a n-D Lambda Module utilizing a (n+1)-D
                     Convolutional operator.
@@ -52,7 +52,7 @@ class LambdaLayer1D(nn.Module):
         super().__init__()
         dim_out = dim_out if dim_out is not None else dim
         self.k = dim_k
-        self.u = dim_intra_dimension  # intra-depth dimension
+        self.u = dim_intra  # intra-depth dimension
         self.h = self.heads = heads
 
         VALID_IMPLEMENTATIONS = [0, 1]
@@ -64,8 +64,8 @@ class LambdaLayer1D(nn.Module):
         self.v = dim_v
 
         self.to_q = nn.Conv1d(dim, dim_k * heads, 1, bias=False)
-        self.to_k = nn.Conv1d(dim, dim_k * dim_intra_dimension, 1, bias=False)
-        self.to_v = nn.Conv1d(dim, dim_v * dim_intra_dimension, 1, bias=False)
+        self.to_k = nn.Conv1d(dim, dim_k * dim_intra, 1, bias=False)
+        self.to_v = nn.Conv1d(dim, dim_v * dim_intra, 1, bias=False)
 
         # initialize Q, K and V
         nn.init.normal_(self.to_q.weight, std=(dim_k * dim_out) ** (-0.5))
@@ -73,7 +73,7 @@ class LambdaLayer1D(nn.Module):
         nn.init.normal_(self.to_v.weight, std=(dim_out) ** (-0.5))
 
         self.norm_q = nn.BatchNorm1d(dim_k * heads)
-        self.norm_v = nn.BatchNorm1d(dim_v * dim_intra_dimension)
+        self.norm_v = nn.BatchNorm1d(dim_v * dim_intra)
 
         self.local_context = r is not None
 
@@ -83,13 +83,13 @@ class LambdaLayer1D(nn.Module):
         if r is not None:
             assert (r % 2) == 1, "Receptive kernel size should be odd"
             if self.implementation == 0:
-                self.pos_conv = nn.Conv2d(dim_intra_dimension, dim_k, (1, r), padding=(0, r // 2))
+                self.pos_conv = nn.Conv2d(dim_intra, dim_k, (1, r), padding=(0, r // 2))
             elif self.implementation == 1:
-                self.pos_conv = nn.Conv1d(dim_intra_dimension, dim_k, r, padding=(r // 2))
+                self.pos_conv = nn.Conv1d(dim_intra, dim_k, r, padding=(r // 2))
         else:
             assert m is not None, "You must specify the window size (m = t)"
             rel_lengths = 2 * m - 1
-            self.rel_pos_emb = nn.Parameter(torch.randn(rel_lengths, rel_lengths, dim_k, dim_intra_dimension))
+            self.rel_pos_emb = nn.Parameter(torch.randn(rel_lengths, rel_lengths, dim_k, dim_intra))
             self.rel_pos = compute_relative_positions(m)
 
             nn.init.uniform_(self.rel_pos_emb)
